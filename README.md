@@ -6,7 +6,7 @@ A Next.js application integrated with Firebase for building web applications.
 ## Installation Instructions
 1. Clone the repository:
    ```bash
-   git clone <repository-url>
+   git clone https://github.com/Darshan2605/firebase-nextjs-docker.git
    cd firebase-nextjs-docker
    ```
 
@@ -47,13 +47,12 @@ npm start
 - Firestore database integration
 - Responsive design with Tailwind CSS
 
+
+
 ## Dockerizing the Application
 
 **Replace env variables in firebaseConfig.ts file with actual values**:
-   Navigate to the root directory of the project and run the following command:
-   ```bash
-   docker build -t firebase-nextjs-docker .
-   ```
+   
 
 To Dockerize the application, follow these steps:
 
