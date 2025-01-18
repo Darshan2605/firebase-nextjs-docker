@@ -52,7 +52,8 @@ npm start
 - Firebase authentication
 - Firestore database integration
 - Responsive design with Tailwind CSS
-- Responsive design with Tailwind CSS
+
+
 
 
 
