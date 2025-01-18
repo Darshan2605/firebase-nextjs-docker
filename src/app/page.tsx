@@ -1,101 +1,306 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+import { useAuth } from "../context/AuthContext";
+import { useEffect, useState } from "react";
+import { db } from "../firebaseConfig";
+import {
+  collection,
+  addDoc,
+  updateDoc,
+  deleteDoc,
+  doc,
+  onSnapshot,
+  FirestoreError,
+} from "firebase/firestore";
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+// Types
+interface User {
+  id: string;
+  name: string;
+}
+
+interface Message {
+  type: 'success' | 'error';
+  content: string;
+}
+
+interface UserFormProps {
+  value: string;
+  onChange: (value: string) => void;
+  onSubmit: () => Promise<void>;
+  buttonText: string;
+  placeholder: string;
+}
+
+// Custom Alert Component
+const Alert = ({ type, children }: { type: 'success' | 'error', children: React.ReactNode }) => (
+  <div className={`p-4 rounded-lg ${
+    type === 'error' 
+      ? 'bg-red-100 border border-red-400 text-red-700 dark:bg-red-900 dark:border-red-700 dark:text-red-200' 
+      : 'bg-green-100 border border-green-400 text-green-700 dark:bg-green-900 dark:border-green-700 dark:text-green-200'
+  }`}>
+    {children}
+  </div>
+);
+
+// Reusable form component
+const UserForm = ({ value, onChange, onSubmit, buttonText, placeholder }: UserFormProps) => (
+  <div className="flex items-center mt-2">
+    <input
+      type="text"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className="border border-gray-300 rounded px-3 py-2 flex-1 mr-2 bg-white text-black dark:bg-gray-800 dark:border-gray-600 dark:text-white"
+      placeholder={placeholder}
+    />
+    <button
+      onClick={onSubmit}
+      className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 transition-colors dark:bg-green-600 dark:hover:bg-green-700"
+      disabled={!value.trim()}
+    >
+      {buttonText}
+    </button>
+  </div>
+);
+
+export default function UserManagement() {
+  const { user, loginWithGoogle, logout } = useAuth();
+  const [users, setUsers] = useState<User[]>([]);
+  const [newUser, setNewUser] = useState<string>("");
+  const [editUserId, setEditUserId] = useState<string | null>(null);
+  const [editUserName, setEditUserName] = useState<string>("");
+  const [message, setMessage] = useState<Message | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isDarkMode, setIsDarkMode] = useState(false);
+
+  useEffect(() => {
+    // Check system preference
+    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+      setIsDarkMode(true);
+    }
+
+    // Listen for changes
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
+      setIsDarkMode(e.matches);
+    });
+  }, []);
+
+  useEffect(() => {
+    // Apply dark mode class to document
+    if (isDarkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [isDarkMode]);
+
+  const usersCollectionRef = collection(db, "users");
+
+  useEffect(() => {
+    const unsubscribe = onSnapshot(
+      usersCollectionRef,
+      (snapshot) => {
+        setUsers(
+          snapshot.docs.map((doc) => ({
+            ...doc.data(),
+            id: doc.id,
+          })) as User[]
+        );
+        setIsLoading(false);
+      },
+      (error: FirestoreError) => {
+        console.error("Error fetching users:", error);
+        setMessage({
+          type: 'error',
+          content: 'Error loading users. Please refresh the page.'
+        });
+        setIsLoading(false);
+      }
+    );
+
+    return () => unsubscribe();
+  }, []);
+
+  const showMessage = (type: 'success' | 'error', content: string) => {
+    setMessage({ type, content });
+    setTimeout(() => setMessage(null), 3000);
+  };
+
+  const handleAddUser = async () => {
+    if (!newUser.trim()) return;
+    
+    try {
+      await addDoc(usersCollectionRef, { name: newUser.trim() });
+      setNewUser("");
+      showMessage('success', "User added successfully!");
+    } catch (error) {
+      console.error("Error adding user:", error);
+      showMessage('error', "Error adding user. Please try again.");
+    }
+  };
+
+  const handleUpdateUser = async () => {
+    if (!editUserName.trim() || !editUserId) return;
+    
+    const userDoc = doc(db, "users", editUserId);
+    try {
+      await updateDoc(userDoc, { name: editUserName.trim() });
+      setEditUserId(null);
+      setEditUserName("");
+      showMessage('success', "User updated successfully!");
+    } catch (error) {
+      console.error("Error updating user:", error);
+      showMessage('error', "Error updating user. Please try again.");
+    }
+  };
+
+  const handleDeleteUser = async (id: string) => {
+    if (!window.confirm("Are you sure you want to delete this user?")) return;
+    
+    const userDoc = doc(db, "users", id);
+    try {
+      await deleteDoc(userDoc);
+      showMessage('success', "User deleted successfully!");
+    } catch (error) {
+      console.error("Error deleting user:", error);
+      showMessage('error', "Error deleting user. Please try again.");
+    }
+  };
+
+  const toggleDarkMode = () => {
+    setIsDarkMode(!isDarkMode);
+  };
+
+  if (!user) {
+    return (
+      <div className={`min-h-screen p-6 flex items-center justify-center ${
+        isDarkMode ? 'dark bg-gray-900' : 'bg-gray-100'
+      }`}>
+        <div className="text-center space-y-6">
+          {/* Image Box */}
+          <div className="mb-8">
+            <div className="w-48 h-48 mx-auto rounded-lg border-2 border-gray-300 dark:border-gray-600 overflow-hidden bg-white dark:bg-gray-800 flex items-center justify-center">
+              <img
+                src="/Signup.jpg"
+                alt="Your Logo"
+                className="max-w-full max-h-full object-contain"
+              />
+            </div>
+          </div>
+      
+          {/* Login Button */}
+          <button
+            onClick={loginWithGoogle}
+            className="bg-white text-gray-700 px-6 py-3 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-3 shadow-md dark:bg-gray-800 dark:text-white dark:hover:bg-gray-700"
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
+            <img 
+              src="/Google.png" 
+              alt="Google"
               width={20}
               height={20}
+              className="w-5 h-5"
             />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+            Login with Google
+          </button>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
+      </div>
+    );
+  }
+
+  return (
+    <div className={`min-h-screen p-6 ${
+      isDarkMode ? 'dark bg-gray-900' : 'bg-gray-100'
+    }`}>
+      <div className="max-w-4xl mx-auto space-y-8">
+        <div className="flex justify-between items-center">
+          <h1 className="text-2xl font-semibold text-gray-800 dark:text-white">
+            Welcome, {user.displayName}!
+          </h1>
+          <div className="flex items-center gap-4">
+            
+            <button
+              onClick={logout}
+              className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 transition-colors dark:bg-red-600 dark:hover:bg-red-700"
+            >
+              Logout
+            </button>
+          </div>
+        </div>
+
+        {message && (
+          <Alert type={message.type}>
+            {message.content}
+          </Alert>
+        )}
+
+        <div>
+          <h2 className="text-lg font-bold text-gray-800 dark:text-white">Add a new user:</h2>
+          <UserForm
+            value={newUser}
+            onChange={setNewUser}
+            onSubmit={handleAddUser}
+            buttonText="Add User"
+            placeholder="Enter user name"
           />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+        </div>
+
+        <div>
+          <h2 className="text-lg font-bold text-gray-800 dark:text-white">Users:</h2>
+          {isLoading ? (
+            <div className="text-center py-4 dark:text-gray-300">Loading users...</div>
+          ) : users.length === 0 ? (
+            <div className="text-center py-4 text-gray-500 dark:text-gray-400">No users found</div>
+          ) : (
+            <ul className="mt-4 space-y-2">
+              {users.map((user) => (
+                <li
+                  key={user.id}
+                  className="flex items-center justify-between p-3 bg-white border border-gray-300 rounded hover:shadow-sm transition-shadow dark:bg-gray-800 dark:border-gray-700"
+                >
+                  {editUserId === user.id ? (
+                    <div className="flex items-center space-x-2 w-full">
+                      <UserForm
+                        value={editUserName}
+                        onChange={setEditUserName}
+                        onSubmit={handleUpdateUser}
+                        buttonText="Save"
+                        placeholder="Enter new name"
+                      />
+                      <button
+                        onClick={() => setEditUserId(null)}
+                        className="bg-gray-500 text-white px-2 py-1 rounded hover:bg-gray-600 transition-colors dark:bg-gray-600 dark:hover:bg-gray-700"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between w-full">
+                      <span className="text-gray-800 dark:text-white">{user.name}</span>
+                      <div className="flex items-center space-x-2">
+                        <button
+                          onClick={() => {
+                            setEditUserId(user.id);
+                            setEditUserName(user.name);
+                          }}
+                          className="bg-yellow-500 text-white px-2 py-1 rounded hover:bg-yellow-600 transition-colors dark:bg-yellow-600 dark:hover:bg-yellow-700"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => handleDeleteUser(user.id)}
+                          className="bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600 transition-colors dark:bg-red-600 dark:hover:bg-red-700"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
