@@ -1,12 +1,18 @@
 # firebase-nextjs-docker
 
 ## Description
-A Next.js application integrated with Firebase for building web applications.
+**firebase-nextjs-docker** is a web application built using Next.js and Firebase, designed to provide a seamless and interactive user experience. This project leverages the power of server-side rendering and static site generation offered by Next.js, combined with Firebase's robust backend services for authentication, real-time database, and cloud storage.
+
+Key features include:
+- **Firebase Authentication**: Secure user authentication using various providers, including Google.
+- **Firestore Database Integration**: Efficient data storage and retrieval with Firestore, enabling real-time updates.
+- **Responsive Design**: A modern and responsive user interface built with Tailwind CSS, ensuring a great experience on both desktop and mobile devices.
+- **Dockerized Application**: Easily deployable using Docker, allowing for consistent environments across development and production.
 
 ## Installation Instructions
 1. Clone the repository:
    ```bash
-   git clone https://github.com/Darshan2605/firebase-nextjs-docker.git
+   git clone <repository-url>
    cd firebase-nextjs-docker
    ```
 
@@ -47,12 +53,13 @@ npm start
 - Firestore database integration
 - Responsive design with Tailwind CSS
 
-
-
 ## Dockerizing the Application
 
 **Replace env variables in firebaseConfig.ts file with actual values**:
-   
+   Navigate to the root directory of the project and run the following command:
+   ```bash
+   docker build -t firebase-nextjs-docker .
+   ```
 
 To Dockerize the application, follow these steps:
 
